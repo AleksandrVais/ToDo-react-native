@@ -1,5 +1,6 @@
 import React, { useContext, useReducer } from "react";
 import { Alert } from "react-native";
+import { Http } from "../../http";
 import { ScreenContext } from "../screen/screenContext";
 import {
 	ADD_TODO,
@@ -28,14 +29,16 @@ export const ToDoState = ({ children, ...props }) => {
 		showLoader();
 		clearError();
 		try {
-			const res = await fetch( `https://reactnative-todo-90e7d.firebaseio.com/todos.json`, {
-				method: "GET",
-				headers: { "Content-Type": "application/json" }
-			} );
-			const data = await res.json();
-			const todos = Object.keys( data ).map( key => ( { ...data[key], id: key } ) );
+			const data = await Http.get( `https://reactnative-todo-90e7d.firebaseio.com/todos.json` );
+			let todos;
+			if(!!data){
+				todos = Object.keys( data ).map( key => ( { ...data[key], id: key } ) );
+			} else {
+				todos = []
+			}
+
 			dispatch( { type: FETCH_TODOS, payload: todos } );
-		}catch ( e ) {
+		} catch ( e ) {
 			showError( "Something was wrong." );
 			console.log( e );
 		} finally {
@@ -44,14 +47,8 @@ export const ToDoState = ({ children, ...props }) => {
 	};
 
 	const addToDo = async title => {
-		const res = await fetch( `https://reactnative-todo-90e7d.firebaseio.com/todos.json`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify( { title } )
-		} );
-		const { name } = await res.json();
-
-		dispatch( { type: ADD_TODO, payload: { id: name, title } } );
+		const data = await Http.post( `https://reactnative-todo-90e7d.firebaseio.com/todos.json`, { title } );
+		dispatch( { type: ADD_TODO, payload: { id: data, title } } );
 	};
 	const removeToDo = id => {
 		const todo = state.todos.find( t => t.id === id );
@@ -65,8 +62,9 @@ export const ToDoState = ({ children, ...props }) => {
 					style: "cancel"
 				},
 				{
-					text: "Remove", onPress: () => {
+					text: "Remove", onPress: async () => {
 						changeScreen( null );
+						await Http.delete( `https://reactnative-todo-90e7d.firebaseio.com/todos/${id}.json` );
 						dispatch( { type: REMOVE_TODO, payload: id } );
 					}
 				}
@@ -75,7 +73,14 @@ export const ToDoState = ({ children, ...props }) => {
 		);
 
 	};
-	const updateToDo = (id, title) => dispatch( { type: UPDATE_TODO, payload: { title, id } } );
+	const updateToDo = async (id, title) => {
+		try {
+			await Http.patch( `https://reactnative-todo-90e7d.firebaseio.com/todos/${id}.json`, { title } );
+			dispatch( { type: UPDATE_TODO, payload: { title, id } } );
+		} catch ( e ) {
+			console.log( e );
+		}
+	};
 
 	// FETCH
 	const showLoader = () => dispatch( { type: SHOW_LOADER } );
